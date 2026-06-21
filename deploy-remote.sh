@@ -71,7 +71,6 @@ if [[ "$HAS_TMUX" == "yes" ]]; then
     info "tmux найден — деплой запускается в tmux-сессии."
     info "Если соединение оборвётся, переподключитесь и выполните: tmux attach -t deploy"
     echo ""
-    # Убиваем старую сессию если есть, создаём новую и аттачимся
     # shellcheck disable=SC2086
     ssh $SSH_OPTS "$TARGET" "tmux kill-session -t deploy 2>/dev/null || true"
     # shellcheck disable=SC2086
@@ -79,8 +78,6 @@ if [[ "$HAS_TMUX" == "yes" ]]; then
         "tmux new-session -s deploy 'cd $REMOTE_DIR && sudo bash deploy.sh; echo; read -rp \"Нажмите Enter для выхода...\" _'"
 else
     warn "tmux не найден на сервере. Деплой запускается напрямую."
-    warn "Если соединение оборвётся во время сборки — образы нужно будет пересобрать."
-    warn "Рекомендуется установить tmux: sudo apt install tmux"
     echo ""
     # shellcheck disable=SC2086
     ssh $SSH_OPTS -tt "$TARGET" "cd $REMOTE_DIR && sudo bash deploy.sh"

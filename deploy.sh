@@ -165,26 +165,47 @@ collect_config() {
         info "Сгенерирован пароль БД: ${BOLD}$DB_PASSWORD${RESET} (сохранён в .env)"
     fi
 
-    export DOMAIN HF_TOKEN DB_PASSWORD
+    # GHCR — образ
+    read -rp "  GHCR образ (например, ghcr.io/user/speech-analytics-gpu-server): " GHCR_IMAGE
+    [[ -n "$GHCR_IMAGE" ]] || error "GHCR_IMAGE обязателен"
+
+    read -rp "  Тег образа [latest]: " IMAGE_TAG
+    IMAGE_TAG="${IMAGE_TAG:-latest}"
+
+    # GHCR — авторизация (нужна только для приватных пакетов)
+    read -rp "  GitHub логин для GHCR (пусто — если пакет публичный): " GHCR_USER
+    if [[ -n "$GHCR_USER" ]]; then
+        read -rsp "  GitHub токен (scope: read:packages): " GHCR_TOKEN
+        echo
+    fi
+
+    export DOMAIN HF_TOKEN DB_PASSWORD GHCR_IMAGE IMAGE_TAG GHCR_USER GHCR_TOKEN
 }
 
 create_env_file() {
     info "Создаю .env..."
     cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
-    sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|"             "$SCRIPT_DIR/.env"
-    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|"       "$SCRIPT_DIR/.env"
+    sed -i "s|^DOMAIN=.*|DOMAIN=$DOMAIN|"               "$SCRIPT_DIR/.env"
+    sed -i "s|^HF_TOKEN=.*|HF_TOKEN=$HF_TOKEN|"         "$SCRIPT_DIR/.env"
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DB_PASSWORD|" "$SCRIPT_DIR/.env"
+    sed -i "s|^GHCR_IMAGE=.*|GHCR_IMAGE=$GHCR_IMAGE|"   "$SCRIPT_DIR/.env"
+    sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=$IMAGE_TAG|"       "$SCRIPT_DIR/.env"
+    sed -i "s|^GHCR_USER=.*|GHCR_USER=${GHCR_USER:-}|"  "$SCRIPT_DIR/.env"
+    sed -i "s|^GHCR_TOKEN=.*|GHCR_TOKEN=${GHCR_TOKEN:-}|" "$SCRIPT_DIR/.env"
     chmod 600 "$SCRIPT_DIR/.env"
     success ".env создан"
 }
 
 # ── Docker-операции ────────────────────────────────────────────────────────────
-build_images() {
-    header "Сборка образов"
-    info "Это займёт 30–60 минут при первой сборке (скачиваются ML-модели)..."
-    docker compose -f "$SCRIPT_DIR/docker-compose.yml" build \
-        --build-arg "HF_TOKEN=$HF_TOKEN"
-    success "Образы собраны"
+pull_images() {
+    header "Получение образов"
+    if [[ -n "${GHCR_TOKEN:-}" && -n "${GHCR_USER:-}" ]]; then
+        info "Авторизация в GHCR..."
+        echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+    fi
+    info "Скачиваю ${GHCR_IMAGE}:${IMAGE_TAG:-latest}..."
+    docker compose -f "$SCRIPT_DIR/docker-compose.yml" pull api worker
+    success "Образы получены"
 }
 
 start_services() {
@@ -277,7 +298,7 @@ main() {
 
     configure_caddy
 
-    build_images
+    pull_images
     start_services
     run_migrations
     create_admin_token
