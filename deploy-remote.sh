@@ -79,7 +79,6 @@ if [[ "$HAS_TMUX" == "yes" ]]; then
 else
     warn "tmux не найден на сервере. Деплой запускается напрямую."
     warn "Сборка образа займёт 30–60 мин. Если соединение оборвётся — запустите снова."
-    warn "Рекомендуется установить tmux: sudo apt install tmux"
     echo ""
     # shellcheck disable=SC2086
     ssh $SSH_OPTS -tt "$TARGET" "cd $REMOTE_DIR && sudo bash deploy.sh"

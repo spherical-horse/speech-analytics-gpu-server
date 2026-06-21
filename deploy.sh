@@ -267,6 +267,7 @@ main() {
     check_nvidia_drivers
     install_nvidia_toolkit
     install_caddy
+    apt-get install -y -q tmux
 
     collect_config
 
