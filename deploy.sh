@@ -96,6 +96,39 @@ install_nvidia_toolkit() {
     success "nvidia-container-toolkit установлен"
 }
 
+# ── Caddy ──────────────────────────────────────────────────────────────────────
+install_caddy() {
+    if command -v caddy &>/dev/null; then
+        success "Caddy уже установлен ($(caddy version | head -1))"
+        return
+    fi
+    info "Устанавливаю Caddy..."
+    apt-get install -y -q debian-keyring debian-archive-keyring apt-transport-https
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+        | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+    curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+        | tee /etc/apt/sources.list.d/caddy-stable.list
+    apt-get update -q
+    apt-get install -y -q caddy
+    success "Caddy установлен"
+}
+
+configure_caddy() {
+    info "Настраиваю Caddy..."
+    cat > /etc/caddy/Caddyfile <<EOF
+$DOMAIN {
+    reverse_proxy localhost:8000
+}
+EOF
+    systemctl enable caddy
+    if systemctl is-active --quiet caddy; then
+        caddy reload --config /etc/caddy/Caddyfile
+    else
+        systemctl start caddy
+    fi
+    success "Caddy настроен и запущен"
+}
+
 # ── Конфигурация ───────────────────────────────────────────────────────────────
 collect_config() {
     header "Конфигурация"
@@ -209,7 +242,9 @@ print_summary() {
     echo -e "  ${BOLD}Управление:${RESET}"
     echo -e "    docker compose logs -f api       # логи API"
     echo -e "    docker compose logs -f worker    # логи воркера"
-    echo -e "    docker compose restart           # перезапуск"
+    echo -e "    docker compose restart           # перезапуск контейнеров"
+    echo -e "    journalctl -u caddy -f           # логи Caddy"
+    echo -e "    systemctl restart caddy          # перезапуск Caddy"
     echo ""
     if [[ "$DOMAIN" == "localhost" ]]; then
         echo -e "  ${YELLOW}Self-signed сертификат: для теста добавьте --insecure к curl${RESET}"
@@ -231,6 +266,7 @@ main() {
     install_docker
     check_nvidia_drivers
     install_nvidia_toolkit
+    install_caddy
 
     collect_config
 
@@ -238,6 +274,8 @@ main() {
     if [[ -z "${USE_EXISTING:-}" || "${USE_EXISTING,,}" == "n" ]]; then
         create_env_file
     fi
+
+    configure_caddy
 
     build_images
     start_services

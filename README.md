@@ -13,6 +13,7 @@
 
 - Docker + Docker Compose с поддержкой GPU (`nvidia-container-toolkit`)
 - NVIDIA GPU с CUDA 12.6+
+- Caddy (устанавливается автоматически скриптом деплоя)
 - Аккаунт на [HuggingFace](https://huggingface.co) с принятыми лицензиями моделей (см. ниже)
 
 ---
@@ -63,11 +64,13 @@ sudo bash deploy.sh
 1. Устанавливает Docker CE
 2. Проверяет NVIDIA-драйвер; если отсутствует — устанавливает через `ubuntu-drivers` и просит перезагрузиться
 3. Устанавливает `nvidia-container-toolkit`
-4. Создаёт `.env` из `.env.example`
-5. Собирает Docker-образы со встроенными ML-моделями
-6. Запускает все контейнеры (`api`, `worker`, `caddy`, `postgres`, `redis`)
-7. Применяет Alembic-миграции
-8. Создаёт первый токен API с именем `admin`
+4. Устанавливает Caddy как системный сервис (через официальный apt-репозиторий)
+5. Создаёт `.env` из `.env.example`
+6. Настраивает и запускает Caddy (пишет `/etc/caddy/Caddyfile`, включает в systemd)
+7. Собирает Docker-образы со встроенными ML-моделями
+8. Запускает контейнеры (`api`, `worker`, `postgres`, `redis`)
+9. Применяет Alembic-миграции
+10. Создаёт первый токен API с именем `admin`
 
 ### Повторный запуск / обновление
 
@@ -91,7 +94,18 @@ sudo bash deploy.sh
 - https://huggingface.co/pyannote/speaker-diarization-3.1
 - https://huggingface.co/pyannote/segmentation-3.0
 
-### 2. Конфигурация
+### 2. Установка Caddy
+
+```bash
+apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+    | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+    | tee /etc/apt/sources.list.d/caddy-stable.list
+apt-get update && apt-get install -y caddy
+```
+
+### 3. Конфигурация
 
 ```bash
 cp .env.example .env
@@ -104,7 +118,21 @@ DB_PASSWORD=ваш_пароль
 HF_TOKEN=hf_ваш_токен
 ```
 
-### 3. Сборка образа
+Настройте `/etc/caddy/Caddyfile`:
+
+```
+api.example.com {
+    reverse_proxy localhost:8000
+}
+```
+
+Затем запустите Caddy:
+
+```bash
+systemctl enable --now caddy
+```
+
+### 4. Сборка образа
 
 Первая сборка занимает 30–60 минут — скачиваются ML-модели (~8 ГБ) и зависимости.
 
@@ -112,19 +140,19 @@ HF_TOKEN=hf_ваш_токен
 docker compose build --build-arg HF_TOKEN=hf_ваш_токен
 ```
 
-### 4. Запуск
+### 5. Запуск
 
 ```bash
 docker compose up -d
 ```
 
-### 5. Миграции БД
+### 6. Миграции БД
 
 ```bash
 docker compose exec api alembic upgrade head
 ```
 
-### 6. Создание первого токена API
+### 7. Создание первого токена API
 
 ```bash
 docker compose exec api python -m app.cli create_token --name admin
@@ -132,13 +160,13 @@ docker compose exec api python -m app.cli create_token --name admin
 
 Токен выводится **один раз** — сохраните его.
 
-### 7. Проверка
+### 8. Проверка
 
 ```bash
 curl https://localhost/api/v1/health --insecure
 ```
 
-> `--insecure` нужен только если `DOMAIN=localhost` (self-signed сертификат Caddy).
+> `--insecure` нужен только если Caddy настроен на `localhost` (self-signed сертификат).
 > На реальном домене флаг не нужен.
 
 Ожидаемый ответ:
