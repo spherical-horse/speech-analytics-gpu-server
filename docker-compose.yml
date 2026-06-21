@@ -5,7 +5,6 @@ volumes:
 
 services:
   api:
-    image: ${GHCR_IMAGE}:${IMAGE_TAG:-latest}
     build: .
     command: uvicorn app.api.main:app --host 0.0.0.0 --port 8000
     env_file: .env
@@ -21,7 +20,6 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ${GHCR_IMAGE}:${IMAGE_TAG:-latest}
     build: .
     command: python -m arq app.worker.main.WorkerSettings
     env_file: .env
