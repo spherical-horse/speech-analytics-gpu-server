@@ -71,8 +71,11 @@ docker compose exec api python -m app.cli create_token --name admin
 ### 7. Проверка
 
 ```bash
-curl http://localhost:8000/api/v1/health
+curl https://localhost/api/v1/health --insecure
 ```
+
+> `--insecure` нужен только если `DOMAIN=localhost` (self-signed сертификат Caddy).
+> На реальном домене флаг не нужен.
 
 Ожидаемый ответ:
 
@@ -96,7 +99,7 @@ curl http://localhost:8000/api/v1/health
 ```bash
 TOKEN="ваш_токен_из_create_token"
 
-curl -X POST http://localhost:8000/api/v1/transcribe \
+curl -X POST https://localhost/api/v1/transcribe \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@/путь/к/звонку.wav" \
   -F "call_id=test_call_001"
@@ -120,7 +123,7 @@ curl -X POST http://localhost:8000/api/v1/transcribe \
 ```bash
 TASK_ID="550e8400-e29b-41d4-a716-446655440000"
 
-curl http://localhost:8000/api/v1/tasks/$TASK_ID \
+curl https://localhost/api/v1/tasks/$TASK_ID \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -165,7 +168,7 @@ curl http://localhost:8000/api/v1/tasks/$TASK_ID \
 Если хотите получить результат push-уведомлением вместо polling:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/transcribe \
+curl -X POST https://localhost/api/v1/transcribe \
   -H "Authorization: Bearer $TOKEN" \
   -F "file=@/путь/к/звонку.wav" \
   -F "call_id=test_call_002" \
@@ -198,9 +201,9 @@ docker compose exec api python -m app.cli revoke_token --name "integration_1"
 
 После запуска доступны:
 
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-- OpenAPI JSON: http://localhost:8000/openapi.json
+- Swagger UI: `https://ваш-домен/docs`
+- ReDoc: `https://ваш-домен/redoc`
+- OpenAPI JSON: `https://ваш-домен/openapi.json`
 
 ---
 
